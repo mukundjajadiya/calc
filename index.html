@@ -2,274 +2,39 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Financial Calculators</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-      #customSelectOptions,
-      #modeOptions {
-        max-height: 200px;
-        overflow-y: auto;
-      }
-    </style>
-    <script>
-      class Utils {
-        static formatINR(num) {
-          return new Intl.NumberFormat("en-IN").format(num);
-        }
-        static unformatNumber(x) {
-          return parseFloat(x.toString().replace(/,/g, "")) || 0;
-        }
-        static fmtINR(val) {
-          return "₹" + Utils.formatINR(val);
-        }
-      }
-
-      class Calculator {
-        constructor(containerId) {
-          this.container = document.getElementById(containerId);
-          this.chartEl = this.container.querySelector("canvas");
-          if (this.chartEl) {
-            this.chart = new Chart(this.chartEl, {
-              type: "pie",
-              data: {
-                labels: ["Invested Amount", "Returns"],
-                datasets: [
-                  { data: [0, 0], backgroundColor: ["#6366f1", "#f59e0b"] },
-                ],
-              },
-              options: {
-                responsive: true,
-                plugins: {
-                  legend: { position: "bottom", labels: { color: "#fff" } },
-                  tooltip: {
-                    callbacks: {
-                      label: function (context) {
-                        return (
-                          context.label + ": ₹" + Utils.formatINR(context.raw)
-                        );
-                      },
-                    },
-                  },
-                },
-              },
-            });
-          }
-        }
-        show() {
-          this.container.style.display = "block";
-        }
-        hide() {
-          this.container.style.display = "none";
-        }
-        updateChart(invested, returns) {
-          if (this.chart) {
-            this.chart.data.datasets[0].data = [invested, returns];
-            this.chart.update();
-          }
-        }
-      }
-
-      class CAGRCalculator extends Calculator {
-        constructor(containerId) {
-          super(containerId);
-          this.modeBtn = this.container.querySelector("#modeBtn");
-          this.modeText = this.container.querySelector("#modeText");
-          this.modeOptions = this.container.querySelector("#modeOptions");
-
-          this.pvEl = this.container.querySelector("#pv");
-          this.fvEl = this.container.querySelector("#fv");
-          this.rateEl = this.container.querySelector("#rate");
-          this.yearsEl = this.container.querySelector("#years");
-          this.pvField = this.container.querySelector("#pvField");
-          this.fvField = this.container.querySelector("#fvField");
-          this.resultEl = this.container.querySelector("#result");
-
-          this.mode = "fv";
-
-          [this.pvEl, this.fvEl, this.yearsEl, this.rateEl].forEach((el) => {
-            this.formatInput(el);
-            el.addEventListener("input", () => {
-              this.formatInput(el);
-              this.recalc();
-            });
-            el.addEventListener("blur", () => this.formatInput(el));
-          });
-
-          this.modeBtn.addEventListener("click", () =>
-            this.modeOptions.classList.toggle("hidden")
-          );
-          this.modeOptions.querySelectorAll("li").forEach((li) => {
-            li.addEventListener("click", () => {
-              this.mode = li.dataset.value;
-              this.modeText.textContent = li.textContent;
-              this.modeOptions.classList.add("hidden");
-              this.recalc();
-            });
-          });
-          document.addEventListener("click", (e) => {
-            if (
-              !this.modeBtn.contains(e.target) &&
-              !this.modeOptions.contains(e.target)
-            ) {
-              this.modeOptions.classList.add("hidden");
-            }
-          });
-
-          this.recalc();
-        }
-        formatInput(el) {
-          el.value = Utils.formatINR(Utils.unformatNumber(el.value));
-        }
-        recalc() {
-          let PV = Utils.unformatNumber(this.pvEl.value);
-          let FV = Utils.unformatNumber(this.fvEl.value);
-          let r = parseFloat(this.rateEl.value) / 100 || 0;
-          let t = parseFloat(this.yearsEl.value) || 0;
-
-          if (this.mode === "fv") {
-            this.pvField.style.display = "block";
-            this.fvField.style.display = "none";
-            FV = PV * Math.pow(1 + r, t);
-            this.resultEl.textContent = `After ${t} years @ ${(r * 100).toFixed(
-              2
-            )}% CAGR, ${Utils.fmtINR(PV)} grows to ${Utils.fmtINR(FV)}.`;
-            this.updateChart(PV, FV - PV);
-          } else {
-            this.pvField.style.display = "none";
-            this.fvField.style.display = "block";
-            PV = FV / Math.pow(1 + r, t);
-            this.resultEl.textContent = `To reach ${Utils.fmtINR(
-              FV
-            )} in ${t} years @ ${(r * 100).toFixed(
-              2
-            )}% CAGR, you need ${Utils.fmtINR(PV)} today.`;
-            this.updateChart(PV, FV - PV);
-          }
-        }
-      }
-
-      class SIPCalculator extends Calculator {
-        constructor(containerId) {
-          super(containerId);
-          this.sipEl = this.container.querySelector("#sipAmount");
-          this.rateEl = this.container.querySelector("#sipRate");
-          this.yearsEl = this.container.querySelector("#sipYears");
-          this.resultEl = this.container.querySelector("#sipResult");
-
-          [this.sipEl, this.rateEl, this.yearsEl].forEach((el) => {
-            this.formatInput(el);
-            el.addEventListener("input", () => {
-              this.formatInput(el);
-              this.recalc();
-            });
-            el.addEventListener("blur", () => this.formatInput(el));
-          });
-          this.recalc();
-        }
-        formatInput(el) {
-          el.value = Utils.formatINR(Utils.unformatNumber(el.value));
-        }
-        recalc() {
-          let P = Utils.unformatNumber(this.sipEl.value);
-          let r = parseFloat(this.rateEl.value) / 100 || 0;
-          let t = parseFloat(this.yearsEl.value) || 0;
-          let n = 12,
-            i = r / n,
-            months = n * t;
-          let FV = P * ((Math.pow(1 + i, months) - 1) / i) * (1 + i);
-          let invested = P * months,
-            returns = FV - invested;
-          this.resultEl.textContent = `Investing ${Utils.fmtINR(
-            P
-          )} per month for ${t} years @ ${(r * 100).toFixed(
-            2
-          )}% CAGR grows to ${Utils.fmtINR(FV)}.`;
-          this.updateChart(invested, returns);
-        }
-      }
-
-      class CalculatorManager {
-        constructor() {
-          this.selectorBtn = document.getElementById("customSelectBtn");
-          this.selectorText = document.getElementById("customSelectText");
-          this.optionsList = document.getElementById("customSelectOptions");
-          this.calculators = {
-            cagr: new CAGRCalculator("cagrCalc"),
-            sip: new SIPCalculator("sipCalc"),
-          };
-          this.current = "cagr";
-
-          this.selectorBtn.addEventListener("click", () =>
-            this.optionsList.classList.toggle("hidden")
-          );
-          this.optionsList.querySelectorAll("li").forEach((li) => {
-            li.addEventListener("click", () => {
-              this.selectorText.textContent = li.textContent;
-              this.optionsList.classList.add("hidden");
-              this.switchCalculator(li.dataset.value);
-            });
-          });
-          document.addEventListener("click", (e) => {
-            if (
-              !this.selectorBtn.contains(e.target) &&
-              !this.optionsList.contains(e.target)
-            ) {
-              this.optionsList.classList.add("hidden");
-            }
-          });
-
-          this.switchCalculator(this.current);
-        }
-        switchCalculator(name) {
-          Object.keys(this.calculators).forEach((k) =>
-            this.calculators[k].hide()
-          );
-          this.calculators[name].show();
-          this.current = name;
-        }
-      }
-      window.addEventListener(
-        "DOMContentLoaded",
-        () => new CalculatorManager()
-      );
-    </script>
   </head>
   <body
-    class="bg-gradient-to-br from-slate-900 to-indigo-900 min-h-screen flex flex-col items-center justify-start p-6 text-slate-100"
+    class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-start p-6 space-y-6"
   >
-    <h1 class="text-3xl font-bold mb-6">💹 Financial Calculators</h1>
-
-    <!-- Main Calculator Dropdown -->
-    <div class="relative w-full max-w-lg mb-6">
-      <label class="block mb-2 text-slate-300">Choose Calculator</label>
-      <div class="relative">
-        <button
-          id="customSelectBtn"
-          class="w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100 flex justify-between items-center"
+    <!-- Calculator Selector -->
+    <div class="relative w-full max-w-md">
+      <button
+        id="calcBtn"
+        class="w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100 flex justify-between items-center"
+      >
+        <span id="calcText">CAGR Calculator</span>
+        <span class="text-slate-300">▼</span>
+      </button>
+      <ul
+        id="calcOptions"
+        class="absolute w-full mt-1 bg-slate-800 border border-white/20 rounded shadow-lg hidden z-10"
+      >
+        <li
+          data-value="cagr"
+          class="p-2 hover:bg-indigo-600 cursor-pointer text-slate-100"
         >
-          <span id="customSelectText">CAGR Calculator</span>
-          <span class="text-slate-300">▼</span>
-        </button>
-        <ul
-          id="customSelectOptions"
-          class="absolute w-full mt-1 bg-slate-800 border border-white/20 rounded shadow-lg hidden z-10"
+          CAGR Calculator
+        </li>
+        <li
+          data-value="sip"
+          class="p-2 hover:bg-indigo-600 cursor-pointer text-slate-100"
         >
-          <li
-            data-value="cagr"
-            class="p-2 hover:bg-indigo-600 cursor-pointer text-slate-100"
-          >
-            CAGR Calculator
-          </li>
-          <li
-            data-value="sip"
-            class="p-2 hover:bg-indigo-600 cursor-pointer text-slate-100"
-          >
-            SIP Calculator
-          </li>
-        </ul>
-      </div>
+          SIP Calculator
+        </li>
+      </ul>
     </div>
 
     <!-- CAGR Calculator -->
@@ -281,8 +46,8 @@
         📈 CAGR Calculator
       </h2>
 
-      <!-- Custom Dropdown for Mode -->
-      <div class="relative mb-6">
+      <!-- Mode Dropdown -->
+      <div class="relative w-full mb-6">
         <button
           id="modeBtn"
           class="w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100 flex justify-between items-center"
@@ -320,6 +85,7 @@
             class="mt-1 w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100"
           />
         </label>
+
         <label class="block" id="fvField" style="display: none">
           <span class="text-slate-300">Target Output Value (FV, ₹)</span>
           <input
@@ -329,6 +95,7 @@
             class="mt-1 w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100"
           />
         </label>
+
         <label class="block">
           <span class="text-slate-300">Time (Years)</span>
           <input
@@ -338,6 +105,7 @@
             class="mt-1 w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100"
           />
         </label>
+
         <label class="block">
           <span class="text-slate-300">CAGR (%)</span>
           <input
@@ -348,10 +116,16 @@
           />
         </label>
       </div>
+
+      <!-- Result -->
       <div class="mt-6 text-center text-xl font-semibold">
         <span id="result" class="text-indigo-300">—</span>
       </div>
-      <div class="mt-6"><canvas></canvas></div>
+
+      <!-- Chart -->
+      <div class="mt-6">
+        <canvas></canvas>
+      </div>
     </div>
 
     <!-- SIP Calculator -->
@@ -360,6 +134,7 @@
       class="bg-white/5 backdrop-blur rounded-2xl p-6 shadow-lg border border-white/10 max-w-lg w-full hidden"
     >
       <h2 class="text-2xl font-semibold mb-4 text-center">💰 SIP Calculator</h2>
+
       <div class="space-y-4">
         <label class="block">
           <span class="text-slate-300">Monthly SIP Amount (₹)</span>
@@ -370,6 +145,7 @@
             class="mt-1 w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100"
           />
         </label>
+
         <label class="block">
           <span class="text-slate-300">Time (Years)</span>
           <input
@@ -379,6 +155,7 @@
             class="mt-1 w-full p-2 rounded bg-white/10 border border-white/20 text-slate-100"
           />
         </label>
+
         <label class="block">
           <span class="text-slate-300">CAGR (%)</span>
           <input
@@ -389,10 +166,228 @@
           />
         </label>
       </div>
+
+      <!-- Result -->
       <div class="mt-6 text-center text-xl font-semibold">
         <span id="sipResult" class="text-indigo-300">—</span>
       </div>
-      <div class="mt-6"><canvas></canvas></div>
+
+      <!-- Chart -->
+      <div class="mt-6">
+        <canvas></canvas>
+      </div>
     </div>
+
+    <!-- Script -->
+    <script>
+      class Utils {
+        static formatINR(num) {
+          if (isNaN(num)) return "";
+          return new Intl.NumberFormat("en-IN").format(num);
+        }
+
+        static unformatNumber(str) {
+          if (!str) return 0;
+          return parseFloat(str.toString().replace(/,/g, "")) || 0;
+        }
+
+        static formatInput(el, type) {
+          let val = el.value;
+          if (type === "currency") {
+            el.value = Utils.formatINR(Utils.unformatNumber(val));
+          } else if (type === "integer") {
+            el.value = Utils.formatINR(Math.floor(Utils.unformatNumber(val)));
+          } else if (type === "float") {
+            el.value = val.replace(/[^0-9.]/g, "");
+          }
+        }
+      }
+
+      class Calculator {
+        constructor(containerId) {
+          this.container = document.getElementById(containerId);
+          this.chart = null;
+        }
+
+        initInputs(config) {
+          Object.keys(config).forEach((id) => {
+            const el = this.container.querySelector(`#${id}`);
+            Utils.formatInput(el, config[id]);
+
+            el.addEventListener("input", () => {
+              Utils.formatInput(el, config[id]);
+              this.recalc();
+            });
+
+            el.addEventListener("blur", () =>
+              Utils.formatInput(el, config[id])
+            );
+          });
+        }
+
+        updateChart(labels, values) {
+          const ctx = this.container.querySelector("canvas").getContext("2d");
+          if (this.chart) this.chart.destroy();
+          this.chart = new Chart(ctx, {
+            type: "pie",
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  data: values,
+                  backgroundColor: ["#4f46e5", "#16a34a", "#f59e0b"],
+                },
+              ],
+            },
+            options: {
+              plugins: {
+                tooltip: {
+                  callbacks: {
+                    label: (context) => {
+                      return (
+                        context.label +
+                        ": ₹" +
+                        Utils.formatINR(context.raw.toFixed(0))
+                      );
+                    },
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      class CAGRCalculator extends Calculator {
+        constructor(containerId) {
+          super(containerId);
+
+          this.config = {
+            pv: "currency",
+            fv: "currency",
+            years: "integer",
+            rate: "float",
+          };
+          this.initInputs(this.config);
+          this.mode = "fv";
+
+          // Mode dropdown
+          const modeBtn = this.container.querySelector("#modeBtn");
+          const modeText = this.container.querySelector("#modeText");
+          const modeOptions = this.container.querySelector("#modeOptions");
+
+          modeBtn.addEventListener("click", () =>
+            modeOptions.classList.toggle("hidden")
+          );
+          modeOptions.querySelectorAll("li").forEach((li) => {
+            li.addEventListener("click", () => {
+              this.mode = li.dataset.value;
+              modeText.textContent = li.textContent;
+              modeOptions.classList.add("hidden");
+
+              this.container.querySelector("#pvField").style.display =
+                this.mode === "fv" ? "block" : "none";
+              this.container.querySelector("#fvField").style.display =
+                this.mode === "pv" ? "block" : "none";
+              this.recalc();
+            });
+          });
+
+          this.recalc();
+        }
+
+        recalc() {
+          const pv = Utils.unformatNumber(
+            this.container.querySelector("#pv").value
+          );
+          const fv = Utils.unformatNumber(
+            this.container.querySelector("#fv").value
+          );
+          const years = Utils.unformatNumber(
+            this.container.querySelector("#years").value
+          );
+          const rate =
+            parseFloat(this.container.querySelector("#rate").value) || 0;
+
+          let resultVal = 0;
+          if (this.mode === "fv") {
+            resultVal = pv * Math.pow(1 + rate / 100, years);
+            this.container.querySelector("#result").textContent =
+              "Final Value (FV): ₹" + Utils.formatINR(resultVal.toFixed(0));
+            this.updateChart(["Invested", "Returns"], [pv, resultVal - pv]);
+          } else {
+            resultVal = fv / Math.pow(1 + rate / 100, years);
+            this.container.querySelector("#result").textContent =
+              "Required Input (PV): ₹" + Utils.formatINR(resultVal.toFixed(0));
+            this.updateChart(
+              ["Required Input", "Returns"],
+              [resultVal, fv - resultVal]
+            );
+          }
+        }
+      }
+
+      class SIPCalculator extends Calculator {
+        constructor(containerId) {
+          super(containerId);
+
+          this.config = {
+            sipAmount: "currency",
+            sipYears: "integer",
+            sipRate: "float",
+          };
+          this.initInputs(this.config);
+          this.recalc();
+        }
+
+        recalc() {
+          const amount = Utils.unformatNumber(
+            this.container.querySelector("#sipAmount").value
+          );
+          const years = Utils.unformatNumber(
+            this.container.querySelector("#sipYears").value
+          );
+          const rate =
+            parseFloat(this.container.querySelector("#sipRate").value) || 0;
+
+          const months = years * 12;
+          const monthlyRate = rate / 100 / 12;
+          let fv = 0;
+          for (let i = 1; i <= months; i++) {
+            fv = (fv + amount) * (1 + monthlyRate);
+          }
+          const invested = amount * months;
+          const returns = fv - invested;
+
+          this.container.querySelector("#sipResult").textContent =
+            "Final Value: ₹" + Utils.formatINR(fv.toFixed(0));
+          this.updateChart(["Invested", "Returns"], [invested, returns]);
+        }
+      }
+
+      // Initialize calculators
+      new CAGRCalculator("cagrCalc");
+      new SIPCalculator("sipCalc");
+
+      // Global calculator switcher
+      const calcBtn = document.getElementById("calcBtn");
+      const calcText = document.getElementById("calcText");
+      const calcOptions = document.getElementById("calcOptions");
+
+      calcBtn.addEventListener("click", () =>
+        calcOptions.classList.toggle("hidden")
+      );
+      calcOptions.querySelectorAll("li").forEach((li) => {
+        li.addEventListener("click", () => {
+          calcText.textContent = li.textContent;
+          calcOptions.classList.add("hidden");
+          document.getElementById("cagrCalc").classList.add("hidden");
+          document.getElementById("sipCalc").classList.add("hidden");
+          if (li.dataset.value === "cagr")
+            document.getElementById("cagrCalc").classList.remove("hidden");
+          else document.getElementById("sipCalc").classList.remove("hidden");
+        });
+      });
+    </script>
   </body>
 </html>
